@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
-import { signIn } from '../firebase';
+import { signIn, signInWithGoogle } from '../firebase';
+import GoogleLogo from '../assets/google-logo';
 
 const LoginContainer = styled.div`
   max-width: 400px;
@@ -18,18 +19,21 @@ const Input = styled.input`
   margin-bottom: 10px;
   padding: 10px;
   font-size: 16px;
+  border-radius: 18px;
 `;
 
 const Button = styled.button`
   padding: 10px;
   font-size: 16px;
-  background-color: #007bff;
+  margin-bottom: 10px;
+  background-color: #4c545c;
   color: white;
   border: none;
   cursor: pointer;
+  border-radius: 18px;
 
   &:hover {
-    background-color: #0056b3;
+    background-color: #7c8690;
   }
 `;
 
@@ -56,6 +60,15 @@ const Login: React.FC = () => {
       console.error('로그인 오류:', error);
     }
   };
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithGoogle();
+      navigate('/');
+    } catch (error) {
+      setError('구글 로그인에 실패했습니다.');
+      console.error('구글 로그인 오류:', error);
+    }
+  };
 
   return (
     <LoginContainer>
@@ -76,6 +89,7 @@ const Login: React.FC = () => {
           required
         />
         <Button type="submit">로그인</Button>
+        <Button type="button" onClick={handleGoogleLogin}><GoogleLogo /> 구글로 로그인</Button>
         {error && <ErrorMessage>{error}</ErrorMessage>}
       </Form>
     </LoginContainer>

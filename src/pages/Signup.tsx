@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from '@emotion/styled';
-import { signUp } from '../firebase';
+import { signUp, signUpWithGoogle } from '../firebase';
 import { FirebaseError } from 'firebase/app';
+import GoogleLogo from '../assets/google-logo';
 
 const SignupContainer = styled.div`
   max-width: 400px;
@@ -19,18 +20,20 @@ const Input = styled.input`
   margin-bottom: 10px;
   padding: 10px;
   font-size: 16px;
+  border-radius: 18px;
 `;
 
 const Button = styled.button`
   padding: 10px;
   font-size: 16px;
-  background-color: #007bff;
+  background-color: #4c545c;
   color: white;
   border: none;
   cursor: pointer;
-
+  border-radius: 18px;
+  margin-bottom: 10px;
   &:hover {
-    background-color: #0056b3;
+    background-color: #7c8690;
   }
 `;
 
@@ -81,6 +84,16 @@ const Signup: React.FC = () => {
       }
     }
   };
+  const handleGoogleSignup = async () => {
+    try {
+      await signUpWithGoogle();
+      console.log("구글 회원가입 성공");
+      navigate('/');
+    } catch (error) {
+      console.error('구글 회원가입 오류:', error);
+      setError('구글 회원가입 중 오류가 발생했습니다.');
+    }
+  };
 
   return (
     <SignupContainer>
@@ -115,6 +128,7 @@ const Signup: React.FC = () => {
           required
         />
         <Button type='submit'>가입하기</Button>
+        <Button type='button' onClick={handleGoogleSignup}><GoogleLogo /> 구글로 회원가입</Button>
         {error && <ErrorMessage>{error}</ErrorMessage>}
       </Form>
     </SignupContainer>

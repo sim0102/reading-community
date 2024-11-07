@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from '@emotion/styled';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { signOut, UserInfo, getAuth } from 'firebase/auth';
 
 const HeaderContainer = styled.header`
   background-color: #f8f9fa;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 `;
 
 const TopSection = styled.div`
@@ -68,6 +69,11 @@ const SignupButton = styled(AuthButton)`
   }
 `;
 
+const LogoutButton = styled(AuthButton)`
+  background-color: #dc3545;
+  color: white;
+`;
+
 const BottomSection = styled.div`
   display: flex;
   justify-content: flex-end;
@@ -91,21 +97,71 @@ const WriteButton = styled(Link)`
   }
 `;
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  user: UserInfo | null;
+}
+
+const Header: React.FC<HeaderProps> = ({ user }) => {
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const handleLogout = async () => {
+    try {
+      const auth = getAuth();
+      await signOut(auth);
+    } catch (error) {
+      console.error('로그아웃 중 오류 발생:', error);
+    }
+  };
+
+  const handleWrite = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !user.uid) {
+      alert('로그인이 필요합니다.');
+      navigate('/login');
+      return;
+    } else {
+      navigate('/write');
+    }
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim() === '') return;
+    navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
+  };
+
   return (
     <HeaderContainer>
       <TopSection>
-        <Logo to="/">커뮤니티</Logo>
+        <Logo to='/'>커뮤니티</Logo>
         <SearchContainer>
-          <SearchInput type="text" placeholder="검색어를 입력하세요..." />
+          <form onSubmit={handleSearch}>
+            <SearchInput
+              type='text'
+              placeholder='검색어를 입력하세요...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </form>
         </SearchContainer>
         <AuthButtons>
-          <LoginButton to="/login">로그인</LoginButton>
-          <SignupButton to="/signup">회원가입</SignupButton>
+          {user ? null : <LoginButton to='/login'>로그인</LoginButton>}
+          {user ? null : <SignupButton to='/signup'>회원가입</SignupButton>}
+          {user ? (
+            <LogoutButton to={'/'} onClick={handleLogout}>
+              로그아웃
+            </LogoutButton>
+          ) : null}
         </AuthButtons>
       </TopSection>
       <BottomSection>
-        <WriteButton to="/write">글쓰기</WriteButton>
+        <WriteButton to='/category/독후감'>독후감</WriteButton>
+        <WriteButton to='/category/독서 모임'>독서 모임</WriteButton>
+        <WriteButton to='/category/자유 게시판'>자유 게시판</WriteButton>
+        <WriteButton to='/write' onClick={handleWrite}>
+          글쓰기
+        </WriteButton>
       </BottomSection>
     </HeaderContainer>
   );
