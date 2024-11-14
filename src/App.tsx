@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import styled from '@emotion/styled';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, UserInfo } from 'firebase/auth';
 import Header from './components/Header';
 import Home from './pages/Home';
 import Write from './pages/Write';
@@ -20,12 +20,6 @@ const MainContent = styled.main`
   margin: 0 auto;
 `;
 
-interface UserInfo {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-}
-
 const App: React.FC = () => {
   const [user, setUser] = useState<UserInfo | null>(null);
   const auth = getAuth();
@@ -35,11 +29,7 @@ const App: React.FC = () => {
       if (currentUser) {
         try {
           await currentUser.reload();
-          setUser({
-            uid: currentUser.uid,
-            email: currentUser.email,
-            displayName: currentUser.displayName || null,
-          });
+          setUser(currentUser); // 전체 currentUser 객체를 저장
           console.log('현재 로그인된 사용자:', currentUser);
         } catch (error) {
           console.error('사용자 정보 새로고침 중 오류 발생:', error);
@@ -59,13 +49,17 @@ const App: React.FC = () => {
         <Header user={user} />
         <MainContent>
           <Routes>
-            <Route path="/" element={<Home user={user} />} />
-            <Route path="/category/:category" element={<Home user={user} />} />
-            <Route path="/write" element={<Write user={user} />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/post/:postId" element={<PostDetail user={user} />} />
-            <Route path="/search" element={<SearchResult />} />
+            <Route path='/' element={<Home user={user} />} />
+            <Route path='/category/:category' element={<Home user={user} />} />
+            <Route path='/write' element={<Write user={user} />} />
+            <Route
+              path='/edit/:postId'
+              element={<Write user={user} isEdit={true} />}
+            />
+            <Route path='/login' element={<Login />} />
+            <Route path='/signup' element={<Signup />} />
+            <Route path='/post/:postId' element={<PostDetail user={user} />} />
+            <Route path='/search' element={<SearchResult />} />
           </Routes>
         </MainContent>
       </AppContainer>

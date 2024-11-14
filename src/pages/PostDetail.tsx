@@ -11,6 +11,7 @@ import {
 import { Timestamp } from 'firebase/firestore';
 import { Viewer } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
+import { UserInfo } from 'firebase/auth';
 
 const PostDetailContainer = styled.div`
   max-width: 800px;
@@ -68,6 +69,13 @@ const BookDetails = styled.div`
   flex: 1;
 `;
 
+interface BookType {
+  id: string;
+  title: string;
+  authors: string[];
+  thumbnail: string;
+}
+
 interface Comment {
   id: string;
   content: string;
@@ -75,13 +83,6 @@ interface Comment {
   createdAt: Timestamp;
   authorName: string;
 }
-
-interface UserInfo {
-  uid: string;
-  email: string | null;
-  displayName: string | null;
-}
-
 interface PostDetailProps {
   user: UserInfo | null;
 }
@@ -94,10 +95,21 @@ interface Post {
   createdAt: Timestamp;
   userId: string;
   book?: {
+    id: string;
     title: string;
     authors: string[];
     thumbnail: string;
   };
+}
+
+interface Post {
+  id: string;
+  title: string;
+  content: string;
+  authorName: string;
+  createdAt: Timestamp;
+  userId: string;
+  book?: BookType;
 }
 
 const PostDetail: React.FC<PostDetailProps> = ({ user }) => {
@@ -184,7 +196,12 @@ const PostDetail: React.FC<PostDetailProps> = ({ user }) => {
       )}
       <Viewer initialValue={post.content} />
       {user && user.uid === post.userId && (
-        <button onClick={handlePostDelete}>게시물 삭제</button>
+        <div>
+          <button onClick={() => navigate(`/edit/${post.id}`)}>
+            게시물 수정
+          </button>
+          <button onClick={handlePostDelete}>게시물 삭제</button>
+        </div>
       )}
       <h2>댓글</h2>
       {user && (

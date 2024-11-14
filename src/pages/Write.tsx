@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import styled from '@emotion/styled';
 import { Editor } from '@toast-ui/react-editor';
-import { createPost } from '../firebase';
+import { createPost, getPost, updatePost } from '../firebase';
 import BookSearchModal from '../components/BookSearchModal';
+import { UserInfo } from 'firebase/auth';
 
 const WriteContainer = styled.div`
   max-width: 800px;
@@ -43,26 +44,40 @@ const Button = styled.button`
 
 const BookInfo = styled.div`
   margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
 `;
 
-interface WriteProps {
-  user: { uid: string } | null;
+const BookCover = styled.img`
+  width: 100px;
+  height: auto;
+`;
+
+const BookDetails = styled.div`
+  flex: 1;
+`;
+
+interface Book {
+  id: string;
+  title: string;
+  authors?: string[];
+  thumbnail?: string;
 }
 
-const Write: React.FC<WriteProps> = ({ user }) => {
+interface WriteProps {
+  user: UserInfo | null;
+  isEdit?: boolean;
+}
+
+const Write: React.FC<WriteProps> = ({ user, isEdit = false }) => {
+  const { postId } = useParams<{ postId?: string }>();
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('자유 게시판');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const editorRef = useRef<Editor>(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!user) {
-      alert('로그인이 필요합니다.');
-      navigate('/login');
-    }
-  }, [user, navigate]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(e.target.value);
@@ -74,8 +89,46 @@ const Write: React.FC<WriteProps> = ({ user }) => {
 
   const handleBookSelect = (book: Book) => {
     setSelectedBook(book);
+    setIsModalOpen(false);
   };
 
+  useEffect(() => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      navigate('/login');
+      return;
+    }
+
+    if (isEdit && postId) {
+      const fetchPost = async () => {
+        try {
+          const post = await getPost(postId);
+          if (post.userId !== user.uid) {
+            alert('수정 권한이 없습니다.');
+            navigate('/');
+            return;
+          }
+          setTitle(post.title);
+          setCategory(post.category);
+          if (editorRef.current) {
+            editorRef.current.getInstance().setMarkdown(post.content);
+          }
+          if (post.book) {
+            setSelectedBook({
+              id: post.book.id,
+              title: post.book.title,
+              authors: post.book.authors,
+              thumbnail: post.book.thumbnail,
+            });
+          }
+        } catch (error) {
+          console.error('게시물 가져오기 실패:', error);
+          navigate('/');
+        }
+      };
+      fetchPost();
+    }
+  }, [user, navigate, isEdit, postId]);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !user.uid) {
@@ -89,24 +142,33 @@ const Write: React.FC<WriteProps> = ({ user }) => {
       return;
     }
     try {
-      const postId = await createPost(
-        user.uid,
-        title,
-        content,
-        category,
-        selectedBook
-      );
-      alert('글이 성공적으로 작성되었습니다.');
-      navigate(`/post/${postId}`);
+      if (isEdit && postId) {
+        await updatePost(postId, title, content, category, selectedBook);
+        alert('글이 성공적으로 수정되었습니다.');
+        navigate(`/post/${postId}`);
+      } else {
+        const newPostId = await createPost(
+          user.uid,
+          title,
+          content,
+          category,
+          selectedBook
+        );
+        alert('글이 성공적으로 작성되었습니다.');
+        navigate(`/post/${newPostId}`);
+      }
     } catch (error) {
-      console.error('글 작성 중 오류 발생:', error);
-      alert('글 작성에 실패했습니다. 다시 시도해 주세요.');
+      console.error(
+        isEdit ? '글 수정 중 오류 발생:' : '글 작성 중 오류 발생:',
+        error
+      );
+      alert(isEdit ? '글 수정에 실패했습니다.' : '글 작성에 실패했습니다.');
     }
   };
 
   return (
     <WriteContainer>
-      <h1>글쓰기</h1>
+      <h1>{isEdit ? '글 수정' : '글쓰기'}</h1>
       <Form onSubmit={handleSubmit}>
         <Input
           type='text'
@@ -125,9 +187,16 @@ const Write: React.FC<WriteProps> = ({ user }) => {
         </button>
         {selectedBook && (
           <BookInfo>
-            <h3>선택된 책:</h3>
-            <p>{selectedBook.volumeInfo.title}</p>
-            <p>{selectedBook.volumeInfo.authors?.join(', ')}</p>
+            {selectedBook.thumbnail && (
+              <BookCover
+                src={selectedBook.thumbnail}
+                alt={selectedBook.title}
+              />
+            )}
+            <BookDetails>
+              <h3>{selectedBook.title}</h3>
+              <p>{selectedBook.authors?.join(', ')}</p>
+            </BookDetails>
           </BookInfo>
         )}
         <Editor
@@ -138,7 +207,7 @@ const Write: React.FC<WriteProps> = ({ user }) => {
           initialEditType='markdown'
           useCommandShortcut={true}
         />
-        <Button type='submit'>글 작성</Button>
+        <Button type='submit'>{isEdit ? '수정하기' : '글쓰기'}</Button>
       </Form>
       <BookSearchModal
         isOpen={isModalOpen}

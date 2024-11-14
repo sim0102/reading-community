@@ -52,13 +52,9 @@ const BookImage = styled.img`
 
 interface Book {
   id: string;
-  volumeInfo: {
-    title: string;
-    authors?: string[];
-    imageLinks?: {
-      thumbnail: string;
-    };
-  };
+  title: string;
+  authors?: string[];
+  thumbnail?: string;
 }
 
 interface BookSearchModalProps {
@@ -67,14 +63,25 @@ interface BookSearchModalProps {
   onSelectBook: (book: Book) => void;
 }
 
-const BookSearchModal: React.FC<BookSearchModalProps> = ({ isOpen, onClose, onSelectBook }) => {
+const BookSearchModal: React.FC<BookSearchModalProps> = ({
+  isOpen,
+  onClose,
+  onSelectBook,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Book[]>([]);
 
   const handleSearch = async () => {
     if (searchTerm.trim() === '') return;
     const results = await searchBooks(searchTerm);
-    setSearchResults(results);
+    // Google Books API 응답을 우리의 Book 인터페이스 형식으로 변환
+    const formattedResults = results.map((book: any) => ({
+      id: book.id,
+      title: book.volumeInfo.title,
+      authors: book.volumeInfo.authors,
+      thumbnail: book.volumeInfo.imageLinks?.thumbnail,
+    }));
+    setSearchResults(formattedResults);
   };
 
   const handleSelectBook = (book: Book) => {
@@ -88,21 +95,21 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ isOpen, onClose, onSe
     <ModalBackground onClick={onClose}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
         <SearchInput
-          type="text"
+          type='text'
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="책 제목을 입력하세요"
+          placeholder='책 제목을 입력하세요'
         />
         <button onClick={handleSearch}>검색</button>
         <BookList>
           {searchResults.map((book) => (
             <BookItem key={book.id} onClick={() => handleSelectBook(book)}>
-              {book.volumeInfo.imageLinks && (
-                <BookImage src={book.volumeInfo.imageLinks.thumbnail} alt={book.volumeInfo.title} />
+              {book.thumbnail && (
+                <BookImage src={book.thumbnail} alt={book.title} />
               )}
               <div>
-                <div>{book.volumeInfo.title}</div>
-                <div>{book.volumeInfo.authors?.join(', ')}</div>
+                <div>{book.title}</div>
+                <div>{book.authors?.join(', ')}</div>
               </div>
             </BookItem>
           ))}
@@ -111,5 +118,4 @@ const BookSearchModal: React.FC<BookSearchModalProps> = ({ isOpen, onClose, onSe
     </ModalBackground>
   );
 };
-
 export default BookSearchModal;

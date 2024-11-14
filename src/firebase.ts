@@ -8,14 +8,23 @@ import {
   signInWithPopup,
 } from 'firebase/auth';
 import {
-  getFirestore,
   collection,
+  doc,
   addDoc,
-  serverTimestamp,
+  getDoc,
   getDocs,
   deleteDoc,
-  getDoc,
   updateDoc,
+  query,
+  where,
+  orderBy,
+  limit,
+  serverTimestamp,
+  getFirestore,
+  startAfter,
+  setDoc,
+  endBefore,
+  limitToLast,
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
 import {
@@ -23,8 +32,6 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { query, orderBy, where } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyB1t4ZHfgzELA4rqTUe3tOkJIT7wlgugzc',
@@ -52,6 +59,25 @@ export const storage = getStorage(app);
 
 // Analytics 내보내기
 export { analytics };
+
+// Book 인터페이스 정의
+interface Book {
+  id: string;
+  title: string;
+  authors?: string[];
+  thumbnail?: string;
+}
+
+interface Post {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;
+  category: string;
+  authorName: string;
+  book?: Book | null;
+  createdAt: any;
+}
 
 // 회원가입 함수
 export const signUp = async (
@@ -146,7 +172,6 @@ export const uploadImage = async (file: File) => {
   await uploadBytes(storageRef, file);
   return getDownloadURL(storageRef);
 };
-
 export const createPost = async (
   userId: string,
   title: string,
@@ -163,14 +188,13 @@ export const createPost = async (
       book: book
         ? {
             id: book.id,
-            title: book.volumeInfo.title,
-            authors: book.volumeInfo.authors,
-            thumbnail: book.volumeInfo.imageLinks?.thumbnail,
+            title: book.title,
+            authors: book.authors,
+            thumbnail: book.thumbnail,
           }
         : null,
       createdAt: serverTimestamp(),
     });
-    console.log('게시물이 성공적으로 작성되었습니다. 문서 ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('게시물 작성 중 오류 발생:', error);
@@ -178,38 +202,102 @@ export const createPost = async (
   }
 };
 
-export const getPosts = async (category?: string) => {
+// 게시물 목록 조회 함수
+export const getPosts = async (
+  category?: string,
+  pageSize: number = 12,
+  cursor?: any,
+  direction: 'next' | 'prev' = 'next'
+) => {
   try {
-    let postsQuery = query(
-      collection(db, 'posts'),
-      orderBy('createdAt', 'desc')
-    );
+    let q;
+    const baseQuery = [
+      ...(category && category !== '전체'
+        ? [where('category', '==', category)]
+        : []),
+      orderBy('createdAt', 'desc'),
+    ];
 
-    if (category) {
-      postsQuery = query(postsQuery, where('category', '==', category));
+    // 첫 페이지 쿼리
+    const firstPageQuery = query(
+      collection(db, 'posts'),
+      ...baseQuery,
+      limit(1)
+    );
+    const firstPageSnapshot = await getDocs(firstPageQuery);
+    const firstPageDoc = firstPageSnapshot.docs[0];
+
+    if (cursor) {
+      if (direction === 'next') {
+        q = query(
+          collection(db, 'posts'),
+          ...baseQuery,
+          startAfter(cursor),
+          limit(pageSize)
+        );
+      } else {
+        q = query(
+          collection(db, 'posts'),
+          ...baseQuery,
+          endBefore(cursor),
+          limitToLast(pageSize)
+        );
+      }
+    } else {
+      q = query(collection(db, 'posts'), ...baseQuery, limit(pageSize));
     }
 
-    const querySnapshot = await getDocs(postsQuery);
+    const querySnapshot = await getDocs(q);
+    const docs = querySnapshot.docs;
+
+    // 결과가 없으면 빈 배열 반환
+    if (docs.length === 0) {
+      return {
+        posts: [],
+        firstDoc: null,
+        lastDoc: null,
+        hasMore: false,
+        hasPrevious: false,
+        isFirstPage: true,
+      };
+    }
 
     const posts = await Promise.all(
-      querySnapshot.docs.map(async (docSnapshot) => {
-        const postData = docSnapshot.data();
+      docs.map(async (document) => {
+        const postData = document.data();
         const userDocRef = doc(db, 'users', postData.userId);
         const userDocSnap = await getDoc(userDocRef);
         const userData = userDocSnap.data();
+
         return {
-          id: docSnapshot.id,
+          id: document.id,
           ...postData,
-          authorName: userData?.displayName || '익명',
-          book: postData.book || null,
+          authorName: userData?.displayName || userData?.email || '익명',
         };
       })
     );
 
-    return posts;
+    const isFirstPage = firstPageDoc?.id === docs[0]?.id;
+    const hasMore = posts.length === pageSize;
+
+    return {
+      posts,
+      firstDoc: docs[0] || null,
+      lastDoc: docs[docs.length - 1] || null,
+      hasMore,
+      hasPrevious: !isFirstPage,
+      isFirstPage,
+    };
   } catch (error) {
-    console.error('게시물 가져오기 중 오류 발생:', error);
-    throw error;
+    console.error('게시물 목록 가져오기 중 오류 발생:', error);
+    return {
+      posts: [],
+      firstDoc: null,
+      lastDoc: null,
+      hasMore: false,
+      hasPrevious: false,
+      isFirstPage: true,
+    };
   }
 };
 // 댓글 작성 함수
@@ -296,7 +384,7 @@ export const deletePost = async (postId: string) => {
 };
 
 // 단일 게시물 조회 함수
-export const getPost = async (postId: string) => {
+export const getPost = async (postId: string): Promise<Post> => {
   try {
     const postDoc = await getDoc(doc(db, 'posts', postId));
     if (postDoc.exists()) {
@@ -304,10 +392,16 @@ export const getPost = async (postId: string) => {
       const userDocRef = doc(db, 'users', postData.userId);
       const userDocSnap = await getDoc(userDocRef);
       const userData = userDocSnap.data();
+
       return {
         id: postDoc.id,
-        ...postData,
+        userId: postData.userId,
+        title: postData.title,
+        content: postData.content,
+        category: postData.category,
         authorName: userData?.displayName || userData?.email || '익명',
+        book: postData.book,
+        createdAt: postData.createdAt,
       };
     } else {
       throw new Error('게시물을 찾을 수 없습니다.');
@@ -322,13 +416,24 @@ export const getPost = async (postId: string) => {
 export const updatePost = async (
   postId: string,
   title: string,
-  content: string
+  content: string,
+  category: string,
+  book: Book | null
 ) => {
   try {
     const postRef = doc(db, 'posts', postId);
     await updateDoc(postRef, {
       title,
       content,
+      category,
+      book: book
+        ? {
+            id: book.id,
+            title: book.title,
+            authors: book.authors,
+            thumbnail: book.thumbnail,
+          }
+        : null,
       updatedAt: serverTimestamp(),
     });
     console.log('게시물이 성공적으로 수정되었습니다.');

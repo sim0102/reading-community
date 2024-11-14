@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/firebase.ts","./src/main.tsx","./src/vite-env.d.ts","./src/api/api.ts","./src/assets/google-logo.tsx","./src/components/booksearchmodal.tsx","./src/components/header.tsx","./src/pages/home.tsx","./src/pages/login.tsx","./src/pages/postdetail.tsx","./src/pages/searchresult.tsx","./src/pages/signup.tsx","./src/pages/write.tsx"],"version":"5.6.3"}
